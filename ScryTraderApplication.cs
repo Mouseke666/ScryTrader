@@ -61,16 +61,12 @@ public class ScryTraderApplication
 
                 if (bluePrintsFound.Count == 1)
                 {
-                    var products = await GetMarketplaceProduct(bluePrintsFound.First().Id);
-                    products = products.Where(x => x.User.CanSellViaHub).ToList();
-                    products = products.Where(x => x.PropertiesHash != null &&  x.PropertiesHash.TryGetValue("condition", out var condition) && condition?.ToString() == "Near Mint").ToList();
-                    var cheapestProduct = products.OrderBy(x => x.Price?.Cents).FirstOrDefault();
-                    if (cheapestProduct != null && cheapestProduct.Price != null)
+                    var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+
+                    if (price.HasValue)
                     {
-                        int cents = cheapestProduct.Price.Cents;
-                        decimal price = cents / 100m;
-                        Console.WriteLine($"{card.Printing.Name} - €{price:F2}");
-                        totalPrice += price;
+                        Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                        totalPrice += price.Value;
                     }
                 }
                 else if(bluePrintsFound.Count > 1)
@@ -94,17 +90,13 @@ public class ScryTraderApplication
 
                         if (bluePrintsFound.Count == 1)
                         {
-                            var products = await GetMarketplaceProduct(bluePrintsFound.First().Id);
-                            products = products.Where(x => x.User.CanSellViaHub).ToList();
-                            products = products.Where(x => x.PropertiesHash != null && x.PropertiesHash.TryGetValue("condition", out var condition) && condition?.ToString() == "Near Mint").ToList();
-                            var cheapestProduct = products.OrderBy(x => x.Price?.Cents).FirstOrDefault();
-                            if (cheapestProduct != null && cheapestProduct.Price != null)
+                            var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+
+                            if (price.HasValue)
                             {
-                            int cents = cheapestProduct.Price.Cents;
-                            decimal price = cents / 100m;
-                            Console.WriteLine($"{card.Printing.Name} - €{price:F2}");
-                            totalPrice += price;
-                        }
+                                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                                totalPrice += price.Value;
+                            }
                         }
                     }
                 }
@@ -126,19 +118,15 @@ public class ScryTraderApplication
                         }
                         
                         bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-                        
+
                         if (bluePrintsFound.Count == 1)
                         {
-                            var products = await GetMarketplaceProduct(bluePrintsFound.First().Id);
-                            products = products.Where(x => x.User.CanSellViaHub).ToList();
-                            products = products.Where(x => x.PropertiesHash != null && x.PropertiesHash.TryGetValue("condition", out var condition) && condition?.ToString() == "Near Mint").ToList();
-                            var cheapestProduct = products.OrderBy(x => x.Price?.Cents).FirstOrDefault();
-                            if (cheapestProduct != null && cheapestProduct.Price != null)
+                            var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+
+                            if (price.HasValue)
                             {
-                                int cents = cheapestProduct.Price.Cents;
-                                decimal price = cents / 100m;
-                                Console.WriteLine($"{card.Printing.Name} - €{price:F2}");
-                                totalPrice += price;
+                                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                                totalPrice += price.Value;
                             }
                         }
                     }
@@ -211,5 +199,22 @@ public class ScryTraderApplication
     private async Task<ScryfallCard?> GetScryfallCardAsync(string setCode, string collectorNumber)
     {
         return await _scryfall!.GetCardByCollectorAsync(setCode, collectorNumber);
+    }
+
+    private async Task<decimal?> GetCheapestNearMintPrice(int blueprintId)
+    {
+        var products = await GetMarketplaceProduct(blueprintId);
+
+        products = products
+            .Where(x => x.User.CanSellViaHub)
+            .Where(x => x.PropertiesHash != null &&
+                        x.PropertiesHash.TryGetValue("condition", out var condition) &&
+                        condition?.ToString() == "Near Mint")
+            .Where(x => x.Price != null)
+            .ToList();
+
+        var cheapestProduct = products.MinBy(x => x.Price!.Cents);
+
+        return cheapestProduct?.Price?.Cents / 100m;
     }
 }
