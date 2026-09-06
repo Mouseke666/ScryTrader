@@ -1,100 +1,39 @@
-﻿using System.Text;
-using ScryTrader.Models;
-using ScryTrader.Services;
-using ScryTrader.Configuration;
-using Microsoft.Extensions.Configuration;
+﻿using ScryTrader.Models;
 
-namespace ScryTrader;
+namespace ScryTrader.Services;
 
-public class ScryTraderApplication
+public class DeckPriceCalculator
 {
-    private CardTraderClient _cardTrader;
-    private ScryfallClient _scryfall;       
-    
-    public ScryTraderApplication()
+    private readonly CardTraderClient _cardTrader;
+    private readonly ScryfallClient _scryfall;
+
+    public DeckPriceCalculator(CardTraderClient cardTrader, ScryfallClient scryfall)
     {
-        _cardTrader = null!;
-        _scryfall = null!;
+        _cardTrader = cardTrader;
+        _scryfall = scryfall;
     }
 
-    public async Task<int> RunAsync()
+    public async Task<decimal?> GetCardPrice(DeckCard card, List<Expansion> expansions)
     {
-        try
+        ScryfallCard? scryFallCard = await _scryfall.GetCardByCollectorAsync(
+            card.Printing.SetCode,
+            card.Printing.CollectorNumber);
+
+        if (scryFallCard == null)
         {
-            var options = LoadConfiguration();
-            using var httpClient = new HttpClient();
-            _cardTrader = new CardTraderClient(httpClient, options);
-
-            using var scryfallHttpClient = new HttpClient();
-            _scryfall = new ScryfallClient(scryfallHttpClient);
-
-            Console.OutputEncoding = Encoding.UTF8;
-
-            Game? game = await _cardTrader.GetGameByNameAsync("Magic");
-            List<Expansion> expansions = await _cardTrader.GetExpansionsByGameAsync(game);
-
-            var parser = new MoxfieldDeckParser();
-
-            Deck deck = parser.Parse("cards.txt");
-
-            decimal totalPrice = await CalculateDeckPrice(deck, expansions);            
-
-            Console.WriteLine($"Total price for deck: €{totalPrice:F2}");
-            return 0;
-        }
-        catch (HttpRequestException ex)
-        {
-            Console.WriteLine($"ScryTrader API error: {ex.Message}");
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Unexpected error: {ex.Message}");
-            return 1;
-        }
-    }
-    
-    private static CardTraderOptions LoadConfiguration()
-    {
-        var assemblyDir = AppContext.BaseDirectory;
-
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(assemblyDir)
-            .AddJsonFile("appsettings.json", optional: false)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var options = configuration
-            .GetSection("CardTrader")
-            .Get<CardTraderOptions>()
-            ?? throw new InvalidOperationException(
-                "CardTrader configuration is missing.");
-
-        if (string.IsNullOrWhiteSpace(options.AuthToken))
-        {
-            throw new InvalidOperationException("CardTrader API token is missing.");
+            return null;
         }
 
-        return options;
-    }
+        List<Blueprint> bluePrintsFound = await FindBlueprints(card, scryFallCard, expansions);
 
-    private async Task<decimal> CalculateDeckPrice(Deck deck, List<Expansion> expansions)
-    {
-        decimal totalPrice = 0;
-        var calculator = new DeckPriceCalculator(_cardTrader, _scryfall);
-
-        foreach (DeckCard card in deck.Cards)
+        if (bluePrintsFound.Count == 1)
         {
-            var price = await calculator.GetCardPrice(card, expansions);
-
-            if (price.HasValue)
-            {
-                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
-                totalPrice += price.Value;
-            }
+            return await _cardTrader.GetCheapestPrice(
+                bluePrintsFound.First().Id,
+                CardCondition.NearMint);
         }
 
-        return totalPrice;
+        return null;
     }
 
     private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
@@ -191,5 +130,5 @@ public class ScryTraderApplication
         }
 
         return bluePrintsFound;
-    }    
+    }
 }
