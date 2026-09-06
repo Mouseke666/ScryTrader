@@ -45,6 +45,7 @@ obj/
 # Ignored files
 bin/
 obj/
+publish/
 
 # IntelliJ files
 .idea/
