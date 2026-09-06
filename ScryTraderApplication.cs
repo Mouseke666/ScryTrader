@@ -139,6 +139,18 @@ public class ScryTraderApplication
     {
         ScryfallCard? scryFallCard = await GetScryfallCardAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
 
+        List<Blueprint> bluePrintsFound = await FindBlueprints(card, scryFallCard, expansions);
+
+        if (bluePrintsFound.Count == 1)
+        {
+            return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+        }
+
+        return null;
+    }
+
+    private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> expansions)
+    {
         var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
         List<Blueprint> bluePrintsFound = new List<Blueprint>();
 
@@ -159,11 +171,7 @@ public class ScryTraderApplication
 
         bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
 
-        if (bluePrintsFound.Count == 1)
-        {
-            return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-        }
-        else if (bluePrintsFound.Count > 1)
+        if (bluePrintsFound.Count > 1)
         {
             var exactExpansion = matchingExpansions.FirstOrDefault(x =>
                 x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
@@ -181,14 +189,9 @@ public class ScryTraderApplication
                 {
                     bluePrintsFound = exactBlueprints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)).DistinctBy(x => x.Id).ToList();
                 }
-
-                if (bluePrintsFound.Count == 1)
-                {
-                    return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-                }
             }
         }
-        else
+        else if (bluePrintsFound.Count == 0)
         {
             var partialSetCode = card.Printing.SetCode.Substring(0, Math.Min(2, card.Printing.SetCode.Length)).ToLower();
             var fallbackExpansions = expansions.Where(x => x.Code.ToLower().Contains(partialSetCode)).ToList();
@@ -207,14 +210,10 @@ public class ScryTraderApplication
                 }
 
                 bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-
-                if (bluePrintsFound.Count == 1)
-                {
-                    return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-                }
             }
         }
 
-        return null;
+        return bluePrintsFound;
     }
+
 }
