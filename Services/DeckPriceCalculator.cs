@@ -30,9 +30,10 @@ public class DeckPriceCalculator
 
         if (bluePrintsFound.Count == 1)
         {
-            return await _cardTrader.GetCheapestPrice(
-                bluePrintsFound.First().Id,
-                CardCondition.NearMint);
+            return await _cardTrader.GetCheapestPriceForQuantity(
+                bluePrintsFound.First().Id, 
+                CardCondition.NearMint, 
+                card.Quantity);
         }
 
         return null;

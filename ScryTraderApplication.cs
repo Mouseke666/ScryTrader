@@ -71,7 +71,7 @@ public class ScryTraderApplication
 
             if (price.HasValue)
             {
-                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                Console.WriteLine($"{card.Quantity}x {card.Printing.Name} - €{price.Value:F2}");
                 totalPrice += price.Value;
             }
         }

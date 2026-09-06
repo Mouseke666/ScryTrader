@@ -87,21 +87,43 @@ public class CardTraderClient
         return products;
     }
 
+    [Obsolete("Use GetCheapestPriceForQuantity(int, CardCondition, int) instead")]
     public async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
+    {
+        return await GetCheapestPriceForQuantity(blueprintId, condition, quantityNeeded: 1);
+    }
+
+    public async Task<decimal?> GetCheapestPriceForQuantity(
+        int blueprintId, 
+        CardCondition condition, 
+        int quantityNeeded)
     {
         var products = await GetMarketplaceProductsAsync(blueprintId);
 
-        products = products
+        // Filter: only sellers who can sell via hub AND not on vacation
+        var eligibleProducts = products
             .Where(x => x.User.CanSellViaHub)
+            .Where(x => !x.OnVacation)
             .Where(x => x.PropertiesHash != null &&
                         x.PropertiesHash.TryGetValue("condition", out var productCondition) &&
                         productCondition?.ToString() == condition.ToCardTraderValue())
             .Where(x => x.Price != null)
+            .OrderBy(x => x.Price!.Cents)
             .ToList();
 
-        var cheapestProduct = products.MinBy(x => x.Price!.Cents);
+        int remaining = quantityNeeded;
+        decimal totalCost = 0;
 
-        return cheapestProduct?.Price?.Cents / 100m;
+        foreach (var product in eligibleProducts)
+        {
+            if (remaining <= 0) break;
+
+            int buyCount = Math.Min(remaining, product.Quantity);
+            totalCost += buyCount * product.Price!.Cents / 100m;
+            remaining -= buyCount;
+        }
+
+        return totalCost > 0 ? totalCost : null;
     }
 
 }
