@@ -33,7 +33,8 @@ public class DeckPriceCalculator
             return await _cardTrader.GetCheapestPriceForQuantity(
                 bluePrintsFound.First().Id, 
                 CardCondition.NearMint, 
-                card.Quantity);
+                card.Quantity,
+                card.Printing.Finish);
         }
 
         return null;

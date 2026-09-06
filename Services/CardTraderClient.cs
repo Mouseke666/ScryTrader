@@ -9,7 +9,7 @@ public class CardTraderClient
 {
     private readonly HttpClient _httpClient;
     private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
-    private readonly Dictionary<int, List<MarketplaceProduct>> _marketplaceProductCache = new();
+    private readonly Dictionary<string, List<MarketplaceProduct>> _marketplaceProductCache = new();
 
     public CardTraderClient(HttpClient httpClient, CardTraderOptions options)
     {
@@ -65,7 +65,9 @@ public class CardTraderClient
 
     public async Task<List<MarketplaceProduct>> GetMarketplaceProductsAsync(int blueprintId, bool? foil = null, string? language = null)
     {
-        if (_marketplaceProductCache.TryGetValue(blueprintId, out var products))
+        var cacheKey = GetMarketplaceCacheKey(blueprintId, foil, language);
+
+        if (_marketplaceProductCache.TryGetValue(cacheKey, out var products))
         {
             return products;
         }
@@ -82,9 +84,17 @@ public class CardTraderClient
         var data = await _httpClient.GetFromJsonAsync<Dictionary<int, List<MarketplaceProduct>>>($"marketplace/products?{queryString}") ?? [];
 
         products = data.Values.SelectMany(x => x).ToList();
-        _marketplaceProductCache[blueprintId] = products;
+        _marketplaceProductCache[cacheKey] = products;
 
         return products;
+    }
+
+    private string GetMarketplaceCacheKey(int blueprintId, bool? foil, string? language)
+    {
+        var parts = new List<string> { $"bp={blueprintId}" };
+        if (foil.HasValue) parts.Add($"f={foil.Value}");
+        if (!string.IsNullOrEmpty(language)) parts.Add($"l={language}");
+        return string.Join("-", parts);
     }
 
     [Obsolete("Use GetCheapestPriceForQuantity(int, CardCondition, int) instead")]
@@ -96,9 +106,17 @@ public class CardTraderClient
     public async Task<decimal?> GetCheapestPriceForQuantity(
         int blueprintId, 
         CardCondition condition, 
-        int quantityNeeded)
+        int quantityNeeded,
+        CardFinish finish = CardFinish.NonFoil)
     {
-        var products = await GetMarketplaceProductsAsync(blueprintId);
+        bool? foilParam = finish switch
+        {
+            CardFinish.Foil => true,
+            CardFinish.Etched => true,
+            _ => false
+        };
+
+        var products = await GetMarketplaceProductsAsync(blueprintId, foil: foilParam);
 
         // Filter: only sellers who can sell via hub AND not on vacation
         var eligibleProducts = products
