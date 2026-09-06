@@ -10,6 +10,7 @@ public class ScryTraderApplication
 {
     private CardTraderClient _cardTrader;
     private ScryfallClient _scryfall;
+    private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
 
     public ScryTraderApplication()
     {
@@ -91,7 +92,14 @@ public class ScryTraderApplication
 
     private async Task<List<Blueprint>> GetBluePrints(Expansion expansion)
     {
-        var result = await _cardTrader.GetBlueprintsAsync(expansion.Id);        
+        if (_blueprintCache.TryGetValue(expansion.Id, out var bluePrints))
+        {
+            return bluePrints;
+        }
+
+        var result = await _cardTrader.GetBlueprintsAsync(expansion.Id);
+        _blueprintCache[expansion.Id] = result;
+
         return result;
     }
 
