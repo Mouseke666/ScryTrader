@@ -1,8 +1,8 @@
 ﻿using System.Text;
+using ScryTrader.Models;
 using ScryTrader.Services;
 using ScryTrader.Configuration;
 using Microsoft.Extensions.Configuration;
-using ScryTrader.Models;
 
 namespace ScryTrader;
 
@@ -135,15 +135,15 @@ public class ScryTraderApplication
         return scryfallCard;
     }
 
-    private async Task<decimal?> GetCheapestNearMintPrice(int blueprintId)
+    private async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
     {
         var products = await GetMarketplaceProduct(blueprintId);
 
         products = products
             .Where(x => x.User.CanSellViaHub)
             .Where(x => x.PropertiesHash != null &&
-                        x.PropertiesHash.TryGetValue("condition", out var condition) &&
-                        condition?.ToString() == "Near Mint")
+                        x.PropertiesHash.TryGetValue("condition", out var productCondition) &&
+                        productCondition?.ToString() == condition.ToCardTraderValue())
             .Where(x => x.Price != null)
             .ToList();
 
@@ -165,7 +165,7 @@ public class ScryTraderApplication
 
         if (bluePrintsFound.Count == 1)
         {
-            return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+            return await GetCheapestPrice(bluePrintsFound.First().Id, CardCondition.NearMint);
         }
 
         return null;
