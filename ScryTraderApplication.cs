@@ -10,8 +10,7 @@ public class ScryTraderApplication
 {
     private CardTraderClient _cardTrader;
     private ScryfallClient _scryfall;       
-    private readonly Dictionary<string, ScryfallCard?> _scryfallCache = new();
-
+    
     public ScryTraderApplication()
     {
         _cardTrader = null!;
@@ -78,22 +77,7 @@ public class ScryTraderApplication
 
         return options;
     }
-      
-    private async Task<ScryfallCard?> GetScryfallCardAsync(string setCode, string collectorNumber)
-    {
-        var cacheKey = $"{setCode}:{collectorNumber}";
-
-        if (_scryfallCache.TryGetValue(cacheKey, out var scryfallCard))
-        {
-            return scryfallCard;
-        }
-
-        scryfallCard = await _scryfall.GetCardByCollectorAsync(setCode, collectorNumber);
-        _scryfallCache[cacheKey] = scryfallCard;
-
-        return scryfallCard;
-    }
-
+          
     private async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
     {
         var products = await _cardTrader.GetMarketplaceProductsAsync(blueprintId);
@@ -113,7 +97,7 @@ public class ScryTraderApplication
 
     private async Task<decimal?> GetCardPrice(DeckCard card, List<Expansion> expansions)
     {
-        ScryfallCard? scryFallCard = await GetScryfallCardAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
+        ScryfallCard? scryFallCard = await _scryfall.GetCardByCollectorAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
 
         if (scryFallCard == null)
         {

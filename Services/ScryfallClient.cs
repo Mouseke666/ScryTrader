@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text.Json;
 using ScryTrader.Models;
 
@@ -7,6 +6,12 @@ namespace ScryTrader.Services;
 public class ScryfallClient
 {
     private readonly HttpClient _httpClient;
+    private readonly Dictionary<string, ScryfallCard?> _scryfallCache = new();
+    private readonly JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new PricesConverter() }
+    };
 
     public ScryfallClient(HttpClient httpClient)
     {
@@ -19,21 +24,25 @@ public class ScryfallClient
     public async Task<ScryfallCard?> GetCardAsync(string scryfallId)
     {
         var response = await _httpClient.GetStringAsync($"/cards/{scryfallId}");
-        return JsonSerializer.Deserialize<ScryfallCard>(response, new JsonSerializerOptions 
-        { 
-            PropertyNameCaseInsensitive = true,
-            Converters = { new PricesConverter() }
-        });
+        return JsonSerializer.Deserialize<ScryfallCard>(response, _jsonSerializerOptions);
     }
 
     public async Task<ScryfallCard?> GetCardByCollectorAsync(string setCode, string collectorNumber)
     {
+        var cacheKey = $"{setCode}:{collectorNumber}";
+
+        if (_scryfallCache.TryGetValue(cacheKey, out var scryfallCard))
+        {
+            return scryfallCard;
+        }
+
         var cleaned = collectorNumber.Replace("★", "").Trim();
         var response = await _httpClient.GetStringAsync($"/cards/{setCode}/{cleaned}");
-        return JsonSerializer.Deserialize<ScryfallCard>(response, new JsonSerializerOptions 
-        { 
-            PropertyNameCaseInsensitive = true,
-            Converters = { new PricesConverter() }
-        });
+
+        scryfallCard = JsonSerializer.Deserialize<ScryfallCard>(response, _jsonSerializerOptions);
+
+        _scryfallCache[cacheKey] = scryfallCard;
+
+        return scryfallCard;
     }
 }
