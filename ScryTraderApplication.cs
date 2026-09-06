@@ -162,8 +162,7 @@ public class ScryTraderApplication
     
     private static CardTraderOptions LoadConfiguration()
     {
-        var assemblyDir = 
-            Path.GetDirectoryName(typeof(Program).Assembly.Location)!;
+        var assemblyDir = AppContext.BaseDirectory;
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(assemblyDir)
