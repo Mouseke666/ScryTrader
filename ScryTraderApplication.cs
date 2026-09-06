@@ -12,6 +12,7 @@ public class ScryTraderApplication
     private ScryfallClient _scryfall;
     private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
     private readonly Dictionary<int, List<MarketplaceProduct>> _marketplaceProductCache = new();
+    private readonly Dictionary<string, ScryfallCard?> _scryfallCache = new();
 
     public ScryTraderApplication()
     {
@@ -132,7 +133,17 @@ public class ScryTraderApplication
 
     private async Task<ScryfallCard?> GetScryfallCardAsync(string setCode, string collectorNumber)
     {
-        return await _scryfall!.GetCardByCollectorAsync(setCode, collectorNumber);
+        var cacheKey = $"{setCode}:{collectorNumber}";
+
+        if (_scryfallCache.TryGetValue(cacheKey, out var scryfallCard))
+        {
+            return scryfallCard;
+        }
+
+        scryfallCard = await _scryfall.GetCardByCollectorAsync(setCode, collectorNumber);
+        _scryfallCache[cacheKey] = scryfallCard;
+
+        return scryfallCard;
     }
 
     private async Task<decimal?> GetCheapestNearMintPrice(int blueprintId)
