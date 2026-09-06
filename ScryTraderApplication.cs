@@ -9,12 +9,14 @@ namespace ScryTrader;
 public class ScryTraderApplication
 {
     private CardTraderClient _cardTrader;
-    private ScryfallClient _scryfall;       
-    
+    private ScryfallClient _scryfall;
+    private DeckPriceCalculator _deckPriceCalculator;
+
     public ScryTraderApplication()
     {
         _cardTrader = null!;
         _scryfall = null!;
+        _deckPriceCalculator = null!;
     }
 
     public async Task<int> RunAsync()
@@ -27,6 +29,8 @@ public class ScryTraderApplication
 
             using var scryfallHttpClient = new HttpClient();
             _scryfall = new ScryfallClient(scryfallHttpClient);
+
+            _deckPriceCalculator = new DeckPriceCalculator(_cardTrader, _scryfall);
 
             Console.OutputEncoding = Encoding.UTF8;
 
@@ -81,11 +85,10 @@ public class ScryTraderApplication
     private async Task<decimal> CalculateDeckPrice(Deck deck, List<Expansion> expansions)
     {
         decimal totalPrice = 0;
-        var calculator = new DeckPriceCalculator(_cardTrader, _scryfall);
 
         foreach (DeckCard card in deck.Cards)
         {
-            var price = await calculator.GetCardPrice(card, expansions);
+            var price = await _deckPriceCalculator.GetCardPrice(card, expansions);
 
             if (price.HasValue)
             {
