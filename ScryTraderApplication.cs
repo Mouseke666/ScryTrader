@@ -41,95 +41,12 @@ public class ScryTraderApplication
 
             foreach (DeckCard card in deck.Cards)
             {
-                ScryfallCard? scryFallCard = await GetScryfallCardAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
-                var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
-                List<Blueprint> bluePrintsFound = new List<Blueprint>();
-                foreach (var expansion in matchingExpansions)
+                var price = await GetCardPrice(card, expansions);
+
+                if (price.HasValue)
                 {
-                    var bluePrints = await GetBluePrints(expansion);                    
-                    var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
-                    if (exactMatches.Count > 0)
-                    {
-                        bluePrintsFound.AddRange(exactMatches);
-                    }
-                    else
-                    {
-                        bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
-                    }
-                }
-                bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-
-                if (bluePrintsFound.Count == 1)
-                {
-                    var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-
-                    if (price.HasValue)
-                    {
-                        Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
-                        totalPrice += price.Value;
-                    }
-                }
-                else if(bluePrintsFound.Count > 1)
-                {
-                    var exactExpansion = matchingExpansions.FirstOrDefault(x => 
-                        x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
-                    
-                    if (exactExpansion != null)
-                    {
-                        var exactBlueprints = await GetBluePrints(exactExpansion);
-                        var filteredExact = exactBlueprints.Where(x => x.Name == card.Printing.Name && !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
-                        
-                        if (filteredExact.Count > 0)
-                        {
-                            bluePrintsFound = filteredExact.DistinctBy(x => x.Id).ToList();
-                        }
-                        else
-                        {
-                            bluePrintsFound = exactBlueprints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)).DistinctBy(x => x.Id).ToList();
-                        }
-
-                        if (bluePrintsFound.Count == 1)
-                        {
-                            var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-
-                            if (price.HasValue)
-                            {
-                                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
-                                totalPrice += price.Value;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    var partialSetCode = card.Printing.SetCode.Substring(0, Math.Min(2, card.Printing.SetCode.Length)).ToLower();
-                    var fallbackExpansions = expansions.Where(x => x.Code.ToLower().Contains(partialSetCode)).ToList();
-                    
-                    if (fallbackExpansions.Any())
-                    {
-                        foreach (var expansion in fallbackExpansions)
-                        {
-                            var bluePrints = await GetBluePrints(expansion);
-                            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
-                            if (exactMatches.Count > 0)
-                                bluePrintsFound.AddRange(exactMatches);
-                            else
-                                bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
-                        }
-                        
-                        bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-
-                        if (bluePrintsFound.Count == 1)
-                        {
-                            var price = await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
-
-                            if (price.HasValue)
-                            {
-                                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
-                                totalPrice += price.Value;
-                            }
-                        }
-                    }
+                    Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                    totalPrice += price.Value;
                 }
             }
 
@@ -216,5 +133,88 @@ public class ScryTraderApplication
         var cheapestProduct = products.MinBy(x => x.Price!.Cents);
 
         return cheapestProduct?.Price?.Cents / 100m;
+    }
+
+    private async Task<decimal?> GetCardPrice(DeckCard card, List<Expansion> expansions)
+    {
+        ScryfallCard? scryFallCard = await GetScryfallCardAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
+
+        var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        List<Blueprint> bluePrintsFound = new List<Blueprint>();
+
+        foreach (var expansion in matchingExpansions)
+        {
+            var bluePrints = await GetBluePrints(expansion);
+            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+
+            if (exactMatches.Count > 0)
+            {
+                bluePrintsFound.AddRange(exactMatches);
+            }
+            else
+            {
+                bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
+            }
+        }
+
+        bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
+
+        if (bluePrintsFound.Count == 1)
+        {
+            return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+        }
+        else if (bluePrintsFound.Count > 1)
+        {
+            var exactExpansion = matchingExpansions.FirstOrDefault(x =>
+                x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
+
+            if (exactExpansion != null)
+            {
+                var exactBlueprints = await GetBluePrints(exactExpansion);
+                var filteredExact = exactBlueprints.Where(x => x.Name == card.Printing.Name && !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+
+                if (filteredExact.Count > 0)
+                {
+                    bluePrintsFound = filteredExact.DistinctBy(x => x.Id).ToList();
+                }
+                else
+                {
+                    bluePrintsFound = exactBlueprints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)).DistinctBy(x => x.Id).ToList();
+                }
+
+                if (bluePrintsFound.Count == 1)
+                {
+                    return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+                }
+            }
+        }
+        else
+        {
+            var partialSetCode = card.Printing.SetCode.Substring(0, Math.Min(2, card.Printing.SetCode.Length)).ToLower();
+            var fallbackExpansions = expansions.Where(x => x.Code.ToLower().Contains(partialSetCode)).ToList();
+
+            if (fallbackExpansions.Any())
+            {
+                foreach (var expansion in fallbackExpansions)
+                {
+                    var bluePrints = await GetBluePrints(expansion);
+                    var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+
+                    if (exactMatches.Count > 0)
+                        bluePrintsFound.AddRange(exactMatches);
+                    else
+                        bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
+                }
+
+                bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
+
+                if (bluePrintsFound.Count == 1)
+                {
+                    return await GetCheapestNearMintPrice(bluePrintsFound.First().Id);
+                }
+            }
+        }
+
+        return null;
     }
 }
