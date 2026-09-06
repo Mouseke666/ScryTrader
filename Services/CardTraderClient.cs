@@ -23,14 +23,33 @@ public class CardTraderClient
         return response?.Array ?? [];
     }
 
+    public async Task<Game> GetGameByNameAsync(string name)
+    {
+        var games = await GetGamesAsync();
+
+        return games.FirstOrDefault(x => x.Name == name) ?? throw new InvalidOperationException($"Game '{name}' not found.");
+    }
+
     public async Task<List<Expansion>> GetExpansionsAsync()
     {
         return await _httpClient.GetFromJsonAsync<List<Expansion>>("expansions") ?? [];
     }
 
+    public async Task<List<Expansion>> GetExpansionsByGameAsync(Game game)
+    {
+        var expansions = await GetExpansionsAsync();
+
+        return expansions.Where(x => x.GameId == game.Id).ToList();
+    }
+
     public async Task<List<Blueprint>> GetBlueprintsAsync(int expansionId)
     {
         return await _httpClient.GetFromJsonAsync<List<Blueprint>>($"blueprints/export?expansion_id={expansionId}") ?? [];        
+    }
+
+    public async Task<List<Blueprint>> GetBlueprintsByExpansionAsync(Expansion expansion)
+    {
+        return await GetBlueprintsAsync(expansion.Id);
     }
 
     public async Task<List<MarketplaceProduct>> GetMarketplaceProductsAsync(int blueprintId, bool? foil = null, string? language = null)

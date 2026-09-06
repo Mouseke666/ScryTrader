@@ -33,8 +33,8 @@ public class ScryTraderApplication
 
             Console.OutputEncoding = Encoding.UTF8;
 
-            Game? game = await GetGameByName("Magic");
-            List<Expansion> expansions = await GetExpansionsByGame(game);
+            Game? game = await _cardTrader.GetGameByNameAsync("Magic");
+            List<Expansion> expansions = await _cardTrader.GetExpansionsByGameAsync(game);
 
             var parser = new MoxfieldDeckParser();
 
@@ -81,32 +81,19 @@ public class ScryTraderApplication
         return options;
     }
 
-    private async Task<List<Blueprint>> GetBluePrints(Expansion expansion)
-    {
-        if (_blueprintCache.TryGetValue(expansion.Id, out var bluePrints))
-        {
-            return bluePrints;
-        }
+    //private async Task<List<Blueprint>> GetBluePrints(Expansion expansion)
+    //{
+    //    if (_blueprintCache.TryGetValue(expansion.Id, out var bluePrints))
+    //    {
+    //        return bluePrints;
+    //    }
 
-        var result = await _cardTrader.GetBlueprintsAsync(expansion.Id);
-        _blueprintCache[expansion.Id] = result;
+    //    var result = await _cardTrader.GetBlueprintsAsync(expansion.Id);
+    //    _blueprintCache[expansion.Id] = result;
 
-        return result;
-    }
-
-    private async Task<Game> GetGameByName(string name)
-    {
-        var games = await _cardTrader.GetGamesAsync();
-        return games.FirstOrDefault(x => x.Name == name) ?? throw new InvalidOperationException($"Game '{name}' not found.");
-    }
-
-    private async Task<List<Expansion>> GetExpansionsByGame(Game game)
-    {        
-        var expansions = await _cardTrader.GetExpansionsAsync();
-        List<Expansion> mtgExpansions = expansions.Where(x => x.GameId == game.Id).ToList();
-        return mtgExpansions;
-    }
-
+    //    return result;
+    //}
+        
     private async Task<List<MarketplaceProduct>> GetMarketplaceProduct(int bluePrintId)
     {
         if (_marketplaceProductCache.TryGetValue(bluePrintId, out var products))
@@ -197,7 +184,7 @@ public class ScryTraderApplication
 
         foreach (var expansion in matchingExpansions)
         {
-            var bluePrints = await GetBluePrints(expansion);
+            var bluePrints = await _cardTrader.GetBlueprintsByExpansionAsync(expansion);
             var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
 
             if (exactMatches.Count > 0)
@@ -222,7 +209,7 @@ public class ScryTraderApplication
             return new List<Blueprint>();
         }
 
-        var exactBlueprints = await GetBluePrints(exactExpansion);
+        var exactBlueprints = await _cardTrader.GetBlueprintsByExpansionAsync(exactExpansion);
 
         var filteredExact = exactBlueprints
             .Where(x => x.Name == card.Printing.Name &&
@@ -252,7 +239,7 @@ public class ScryTraderApplication
         {
             foreach (var expansion in fallbackExpansions)
             {
-                var bluePrints = await GetBluePrints(expansion);
+                var bluePrints = await _cardTrader.GetBlueprintsByExpansionAsync(expansion);
                 var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
 
                 if (exactMatches.Count > 0)
