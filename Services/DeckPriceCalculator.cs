@@ -15,7 +15,7 @@ public class DeckPriceCalculator
         _scryfall = scryfall;
     }
 
-    public async Task<decimal?> GetCardPrice(DeckCard card, List<Expansion> expansions)
+    public async Task<ProductSelection?> GetCardPriceAsync(DeckCard card, List<Expansion> expansions)
     {
         ScryfallCard? scryFallCard = await _scryfall.GetCardByCollectorAsync(
             card.Printing.SetCode,
@@ -30,11 +30,26 @@ public class DeckPriceCalculator
 
         if (bluePrintsFound.Count == 1)
         {
-            return await _cardTrader.GetCheapestPriceForQuantity(
-                bluePrintsFound.First().Id, 
+            var blueprint = bluePrintsFound.First();
+            
+            var (price, productId) = await _cardTrader.GetCheapestPriceWithProductAsync(
+                blueprint.Id, 
                 CardCondition.NearMint, 
                 card.Quantity,
                 card.Printing.Finish);
+
+            if (price.HasValue)
+            {
+                return new ProductSelection 
+                { 
+                    ProductId = productId,
+                    Quantity = card.Quantity,
+                    PricePerUnit = price.Value / card.Quantity,
+                    TotalPrice = price.Value,
+                    CardName = card.Printing.Name,
+                    Finish = card.Printing.Finish
+                };
+            }
         }
 
         return null;

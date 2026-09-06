@@ -44,9 +44,70 @@ public class ScryTraderApplication
 
             Deck deck = parser.Parse("cards.txt");
 
-            decimal totalPrice = await CalculateDeckPriceAsync(deck, expansions);
+            var selections = await CalculateDeckSelectionsAsync(deck, expansions);
 
-            Console.WriteLine($"Total price for deck: €{totalPrice:F2}");
+            if (selections.Count == 0)
+            {
+                Console.WriteLine("No cards found with prices.");
+                return 1;
+            }
+
+            // Merge quantities for same product
+            var mergedSelections = selections
+                .GroupBy(s => (s.ProductId, s.Finish))
+                .Select(g => new ProductSelection
+                {
+                    ProductId = g.Key.ProductId,
+                    Quantity = g.Sum(x => x.Quantity),
+                    PricePerUnit = g.First().PricePerUnit,
+                    TotalPrice = g.Sum(x => x.TotalPrice),
+                    CardName = g.First().CardName,
+                    Finish = g.First().Finish
+                })
+                .ToList();
+
+            // Show cart summary
+            var cartSummary = new CartSummary 
+            { 
+                Items = mergedSelections, 
+                TotalPrice = selections.Sum(s => s.TotalPrice) 
+            };
+            cartSummary.Print();
+
+            // Ask user confirmation
+            Console.Write("\nAdd to cart? (y/n): ");
+            var answer = Console.ReadLine()?.ToLower();
+
+            if (answer == "y")
+            {
+                // Add each product to cart
+                int successCount = 0;
+                int failCount = 0;
+
+                foreach (var selection in mergedSelections)
+                {
+                    var result = await _cardTrader.AddToCartAsync(
+                        selection.ProductId, 
+                        selection.Quantity, 
+                        options.BillingAddress!, 
+                        options.ShippingAddress!, 
+                        viaCardTraderZero: true);
+
+                    if (result.Success)
+                    {
+                        Console.WriteLine($"✓ Added: {result.Quantity}x {selection.CardName}");
+                        successCount++;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"✗ Failed: {selection.CardName} ({selection.Quantity}x) - {result.ErrorMessage}");
+                        failCount++;
+                    }
+                }
+
+                Console.WriteLine($"\nCart summary: {successCount} items added, {failCount} failed");
+            }
+
             return 0;
         }
         catch (HttpRequestException ex)
@@ -61,22 +122,22 @@ public class ScryTraderApplication
         }
     }
 
-    private async Task<decimal> CalculateDeckPriceAsync(Deck deck, List<Expansion> expansions)
+    private async Task<List<ProductSelection>> CalculateDeckSelectionsAsync(Deck deck, List<Expansion> expansions)
     {
-        decimal totalPrice = 0;
+        var selections = new List<ProductSelection>();
 
         foreach (DeckCard card in deck.Cards)
         {
-            var price = await _deckPriceCalculator.GetCardPrice(card, expansions);
+            var selection = await _deckPriceCalculator.GetCardPriceAsync(card, expansions);
 
-            if (price.HasValue)
+            if (selection != null)
             {
-                Console.WriteLine($"{card.Quantity}x {card.Printing.Name} - €{price.Value:F2}");
-                totalPrice += price.Value;
+                Console.WriteLine($"{selection.Quantity}x {selection.CardName} - €{selection.TotalPrice:F2}");
+                selections.Add(selection);
             }
         }
 
-        return totalPrice;
+        return selections;
     }    
     
     private static CardTraderOptions LoadConfiguration()

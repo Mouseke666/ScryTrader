@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using ScryTrader.Configuration;
+using System.Text.Json;
 
 namespace ScryTrader.Services;
 
@@ -63,7 +64,10 @@ public class CardTraderClient
         return await GetBlueprintsAsync(expansion.Id);
     }
 
-    public async Task<List<MarketplaceProduct>> GetMarketplaceProductsAsync(int blueprintId, bool? foil = null, string? language = null)
+    public async Task<List<MarketplaceProduct>> GetMarketplaceProductsAsync(
+    int blueprintId,
+    bool? foil = null,
+    string? language = null)
     {
         var cacheKey = GetMarketplaceCacheKey(blueprintId, foil, language);
 
@@ -72,18 +76,35 @@ public class CardTraderClient
             return products;
         }
 
-        var queryParams = new List<string> { $"blueprint_id={blueprintId}" };
+        var queryParams = new List<string>
+    {
+        $"blueprint_id={blueprintId}"
+    };
 
         if (foil.HasValue)
+        {
             queryParams.Add($"foil={foil.Value.ToString().ToLowerInvariant()}");
+        }
 
         if (!string.IsNullOrEmpty(language))
+        {
             queryParams.Add($"language={language}");
+        }
 
         var queryString = string.Join("&", queryParams);
-        var data = await _httpClient.GetFromJsonAsync<Dictionary<int, List<MarketplaceProduct>>>($"marketplace/products?{queryString}") ?? [];
 
-        products = data.Values.SelectMany(x => x).ToList();
+        var response = await _httpClient.GetAsync($"marketplace/products?{queryString}");
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        var data = JsonSerializer.Deserialize<Dictionary<int, List<MarketplaceProduct>>>(json)
+                   ?? [];
+
+        products = data.Values
+            .SelectMany(x => x)
+            .ToList();
+
         _marketplaceProductCache[cacheKey] = products;
 
         return products;
@@ -116,7 +137,7 @@ public class CardTraderClient
             _ => false
         };
 
-        var products = await GetMarketplaceProductsAsync(blueprintId, foil: foilParam);
+        var products = await GetMarketplaceProductsAsync(blueprintId, foil: foilParam, language: "en");
 
         // Filter: only sellers who can sell via hub AND not on vacation
         var eligibleProducts = products
@@ -142,6 +163,98 @@ public class CardTraderClient
         }
 
         return totalCost > 0 ? totalCost : null;
+    }
+
+    public async Task<(decimal? Price, int ProductId)> GetCheapestPriceWithProductAsync(
+        int blueprintId, 
+        CardCondition condition, 
+        int quantityNeeded,
+        CardFinish finish = CardFinish.NonFoil)
+    {
+        bool? foilParam = finish switch
+        {
+            CardFinish.Foil => true,
+            CardFinish.Etched => true,
+            _ => false
+        };
+
+        var products = await GetMarketplaceProductsAsync(blueprintId, foil: foilParam, language: "en");
+
+        // Filter: only sellers who can sell via hub AND not on vacation
+        var eligibleProducts = products
+            .Where(x => x.User.CanSellViaHub)
+            .Where(x => !x.OnVacation)
+            .Where(x => x.PropertiesHash != null &&
+                        x.PropertiesHash.TryGetValue("condition", out var productCondition) &&
+                        productCondition?.ToString() == condition.ToCardTraderValue())
+            .Where(x => x.Price != null)
+            .OrderBy(x => x.Price!.Cents)
+            .ToList();
+
+        int remaining = quantityNeeded;
+        decimal totalCost = 0;
+        int selectedProductId = 0;
+
+        foreach (var product in eligibleProducts)
+        {
+            if (remaining <= 0) break;
+
+            int buyCount = Math.Min(remaining, product.Quantity);
+            totalCost += buyCount * product.Price!.Cents / 100m;
+            selectedProductId = product.Id;
+            remaining -= buyCount;
+        }
+
+        return (totalCost > 0 ? totalCost : null, selectedProductId);
+    }
+
+    public async Task<CartAddResult> AddToCartAsync(
+        int productId, 
+        int quantity, 
+        Address billingAddress, 
+        Address shippingAddress, 
+        bool viaCardTraderZero = true)
+    {
+        var request = new
+        {
+            product_id = productId,
+            quantity = quantity,
+            via_cardtrader_zero = viaCardTraderZero,
+            billing_address = billingAddress,
+            shipping_address = shippingAddress
+        };
+
+        var response = await _httpClient.PostAsJsonAsync("cart/add", request);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            string? errorDetails = null;
+            try
+            {
+                errorDetails = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"API Error for product {productId}: {response.StatusCode}");
+                Console.WriteLine($"Response: {errorDetails}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not read error response: {ex.Message}");
+            }
+
+            return new CartAddResult 
+            { 
+                Success = false, 
+                ProductName = "", 
+                Quantity = quantity,
+                ErrorMessage = $"{response.StatusCode}: {errorDetails}" 
+            };
+        }
+        
+        return new CartAddResult 
+        { 
+            Success = true, 
+            ProductName = "", 
+            Quantity = quantity 
+        };
     }
 
 }
