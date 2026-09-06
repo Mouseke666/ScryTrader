@@ -46,6 +46,7 @@ obj/
 bin/
 obj/
 publish/
+appsettings.json
 
 # IntelliJ files
 .idea/
