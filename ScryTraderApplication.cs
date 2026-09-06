@@ -9,9 +9,7 @@ namespace ScryTrader;
 public class ScryTraderApplication
 {
     private CardTraderClient _cardTrader;
-    private ScryfallClient _scryfall;
-    private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
-    private readonly Dictionary<int, List<MarketplaceProduct>> _marketplaceProductCache = new();
+    private ScryfallClient _scryfall;       
     private readonly Dictionary<string, ScryfallCard?> _scryfallCache = new();
 
     public ScryTraderApplication()
@@ -80,33 +78,7 @@ public class ScryTraderApplication
 
         return options;
     }
-
-    //private async Task<List<Blueprint>> GetBluePrints(Expansion expansion)
-    //{
-    //    if (_blueprintCache.TryGetValue(expansion.Id, out var bluePrints))
-    //    {
-    //        return bluePrints;
-    //    }
-
-    //    var result = await _cardTrader.GetBlueprintsAsync(expansion.Id);
-    //    _blueprintCache[expansion.Id] = result;
-
-    //    return result;
-    //}
-        
-    private async Task<List<MarketplaceProduct>> GetMarketplaceProduct(int bluePrintId)
-    {
-        if (_marketplaceProductCache.TryGetValue(bluePrintId, out var products))
-        {
-            return products;
-        }
-
-        var result = await _cardTrader.GetMarketplaceProductsAsync(bluePrintId);
-        _marketplaceProductCache[bluePrintId] = result;
-
-        return result;
-    }
-
+      
     private async Task<ScryfallCard?> GetScryfallCardAsync(string setCode, string collectorNumber)
     {
         var cacheKey = $"{setCode}:{collectorNumber}";
@@ -124,7 +96,7 @@ public class ScryTraderApplication
 
     private async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
     {
-        var products = await GetMarketplaceProduct(blueprintId);
+        var products = await _cardTrader.GetMarketplaceProductsAsync(blueprintId);
 
         products = products
             .Where(x => x.User.CanSellViaHub)

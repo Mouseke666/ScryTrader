@@ -2,13 +2,14 @@
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using ScryTrader.Configuration;
-using System.Text.Json;
 
 namespace ScryTrader.Services;
 
 public class CardTraderClient
 {
     private readonly HttpClient _httpClient;
+    private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
+    private readonly Dictionary<int, List<MarketplaceProduct>> _marketplaceProductCache = new();
 
     public CardTraderClient(HttpClient httpClient, CardTraderOptions options)
     {
@@ -44,7 +45,17 @@ public class CardTraderClient
 
     public async Task<List<Blueprint>> GetBlueprintsAsync(int expansionId)
     {
-        return await _httpClient.GetFromJsonAsync<List<Blueprint>>($"blueprints/export?expansion_id={expansionId}") ?? [];        
+        if (_blueprintCache.TryGetValue(expansionId, out var bluePrints))
+        {
+            return bluePrints;
+        }
+
+        var result = await _httpClient.GetFromJsonAsync<List<Blueprint>>(
+            $"blueprints/export?expansion_id={expansionId}") ?? [];
+
+        _blueprintCache[expansionId] = result;
+
+        return result;
     }
 
     public async Task<List<Blueprint>> GetBlueprintsByExpansionAsync(Expansion expansion)
@@ -54,18 +65,26 @@ public class CardTraderClient
 
     public async Task<List<MarketplaceProduct>> GetMarketplaceProductsAsync(int blueprintId, bool? foil = null, string? language = null)
     {
+        if (_marketplaceProductCache.TryGetValue(blueprintId, out var products))
+        {
+            return products;
+        }
+
         var queryParams = new List<string> { $"blueprint_id={blueprintId}" };
-        
+
         if (foil.HasValue)
             queryParams.Add($"foil={foil.Value.ToString().ToLowerInvariant()}");
-        
+
         if (!string.IsNullOrEmpty(language))
             queryParams.Add($"language={language}");
 
         var queryString = string.Join("&", queryParams);
         var data = await _httpClient.GetFromJsonAsync<Dictionary<int, List<MarketplaceProduct>>>($"marketplace/products?{queryString}") ?? [];
-        
-        return data.Values.SelectMany(x => x).ToList();
+
+        products = data.Values.SelectMany(x => x).ToList();
+        _marketplaceProductCache[blueprintId] = products;
+
+        return products;
     }
-        
+
 }
