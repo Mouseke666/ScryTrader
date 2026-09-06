@@ -9,7 +9,6 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibraryDependenciesInSingleFile>true</IncludeNativeLibraryDependenciesInSingleFile>
-    <DebugType>none</DebugType>
     <Version>0.0.2</Version>
   </PropertyGroup>
   <ItemGroup>
