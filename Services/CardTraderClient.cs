@@ -87,4 +87,21 @@ public class CardTraderClient
         return products;
     }
 
+    public async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
+    {
+        var products = await GetMarketplaceProductsAsync(blueprintId);
+
+        products = products
+            .Where(x => x.User.CanSellViaHub)
+            .Where(x => x.PropertiesHash != null &&
+                        x.PropertiesHash.TryGetValue("condition", out var productCondition) &&
+                        productCondition?.ToString() == condition.ToCardTraderValue())
+            .Where(x => x.Price != null)
+            .ToList();
+
+        var cheapestProduct = products.MinBy(x => x.Price!.Cents);
+
+        return cheapestProduct?.Price?.Cents / 100m;
+    }
+
 }

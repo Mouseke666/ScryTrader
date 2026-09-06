@@ -77,24 +77,7 @@ public class ScryTraderApplication
 
         return options;
     }
-          
-    private async Task<decimal?> GetCheapestPrice(int blueprintId, CardCondition condition)
-    {
-        var products = await _cardTrader.GetMarketplaceProductsAsync(blueprintId);
-
-        products = products
-            .Where(x => x.User.CanSellViaHub)
-            .Where(x => x.PropertiesHash != null &&
-                        x.PropertiesHash.TryGetValue("condition", out var productCondition) &&
-                        productCondition?.ToString() == condition.ToCardTraderValue())
-            .Where(x => x.Price != null)
-            .ToList();
-
-        var cheapestProduct = products.MinBy(x => x.Price!.Cents);
-
-        return cheapestProduct?.Price?.Cents / 100m;
-    }
-
+              
     private async Task<decimal?> GetCardPrice(DeckCard card, List<Expansion> expansions)
     {
         ScryfallCard? scryFallCard = await _scryfall.GetCardByCollectorAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
@@ -108,7 +91,7 @@ public class ScryTraderApplication
 
         if (bluePrintsFound.Count == 1)
         {
-            return await GetCheapestPrice(bluePrintsFound.First().Id, CardCondition.NearMint);
+            return await _cardTrader.GetCheapestPrice(bluePrintsFound.First().Id, CardCondition.NearMint);
         }
 
         return null;
