@@ -139,6 +139,11 @@ public class ScryTraderApplication
     {
         ScryfallCard? scryFallCard = await GetScryfallCardAsync(card.Printing.SetCode, card.Printing.CollectorNumber);
 
+        if (scryFallCard == null)
+        {
+            return null;
+        }
+
         List<Blueprint> bluePrintsFound = await FindBlueprints(card, scryFallCard, expansions);
 
         if (bluePrintsFound.Count == 1)
@@ -149,7 +154,7 @@ public class ScryTraderApplication
         return null;
     }
 
-    private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> expansions)
+    private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
     {
         var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
 
@@ -169,14 +174,14 @@ public class ScryTraderApplication
         return bluePrintsFound;
     }
 
-    private async Task<List<Blueprint>> FindBlueprintsInExpansions(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> matchingExpansions)
+    private async Task<List<Blueprint>> FindBlueprintsInExpansions(DeckCard card, ScryfallCard scryFallCard, List<Expansion> matchingExpansions)
     {
         List<Blueprint> bluePrintsFound = new List<Blueprint>();
 
         foreach (var expansion in matchingExpansions)
         {
             var bluePrints = await GetBluePrints(expansion);
-            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
 
             if (exactMatches.Count > 0)
             {
@@ -191,7 +196,7 @@ public class ScryTraderApplication
         return bluePrintsFound;
     }
 
-    private async Task<List<Blueprint>> ResolveMultipleBlueprints(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> matchingExpansions)
+    private async Task<List<Blueprint>> ResolveMultipleBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> matchingExpansions)
     {
         var exactExpansion = matchingExpansions.FirstOrDefault(x => x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
 
@@ -205,7 +210,7 @@ public class ScryTraderApplication
         var filteredExact = exactBlueprints
             .Where(x => x.Name == card.Printing.Name &&
                         !string.IsNullOrEmpty(x.ScryfallId) &&
-                        x.ScryfallId == scryFallCard!.Id)
+                        x.ScryfallId == scryFallCard.Id)
             .ToList();
 
         if (filteredExact.Count > 0)
@@ -219,7 +224,7 @@ public class ScryTraderApplication
             .ToList();
     }
 
-    private async Task<List<Blueprint>> FindBlueprintsUsingFallback(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> expansions)
+    private async Task<List<Blueprint>> FindBlueprintsUsingFallback(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
     {
         var partialSetCode = card.Printing.SetCode.Substring(0, Math.Min(2, card.Printing.SetCode.Length)).ToLower();
         var fallbackExpansions = expansions.Where(x => x.Code.ToLower().Contains(partialSetCode)).ToList();
@@ -231,7 +236,7 @@ public class ScryTraderApplication
             foreach (var expansion in fallbackExpansions)
             {
                 var bluePrints = await GetBluePrints(expansion);
-                var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+                var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
 
                 if (exactMatches.Count > 0)
                     bluePrintsFound.AddRange(exactMatches);
