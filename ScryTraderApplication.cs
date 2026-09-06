@@ -10,12 +10,14 @@ public class ScryTraderApplication
 {
     private CardTraderClient _cardTrader;
     private ScryfallClient _scryfall;
+    private BlueprintMatcher _blueprintMatcher;
     private DeckPriceCalculator _deckPriceCalculator;
 
     public ScryTraderApplication()
     {
         _cardTrader = null!;
         _scryfall = null!;
+        _blueprintMatcher = null!;
         _deckPriceCalculator = null!;
     }
 
@@ -30,7 +32,8 @@ public class ScryTraderApplication
             using var scryfallHttpClient = new HttpClient();
             _scryfall = new ScryfallClient(scryfallHttpClient);
 
-            _deckPriceCalculator = new DeckPriceCalculator(_cardTrader, _scryfall);
+            _blueprintMatcher = new BlueprintMatcher(_cardTrader);
+            _deckPriceCalculator = new DeckPriceCalculator(_cardTrader, _blueprintMatcher, _scryfall);
 
             Console.OutputEncoding = Encoding.UTF8;
 
@@ -41,7 +44,7 @@ public class ScryTraderApplication
 
             Deck deck = parser.Parse("cards.txt");
 
-            decimal totalPrice = await _deckPriceCalculator.CalculateDeckPrice(deck, expansions);
+            decimal totalPrice = await CalculateDeckPriceAsync(deck, expansions);
 
             Console.WriteLine($"Total price for deck: €{totalPrice:F2}");
             return 0;
@@ -57,6 +60,24 @@ public class ScryTraderApplication
             return 1;
         }
     }
+
+    private async Task<decimal> CalculateDeckPriceAsync(Deck deck, List<Expansion> expansions)
+    {
+        decimal totalPrice = 0;
+
+        foreach (DeckCard card in deck.Cards)
+        {
+            var price = await _deckPriceCalculator.GetCardPrice(card, expansions);
+
+            if (price.HasValue)
+            {
+                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                totalPrice += price.Value;
+            }
+        }
+
+        return totalPrice;
+    }    
     
     private static CardTraderOptions LoadConfiguration()
     {
@@ -80,101 +101,5 @@ public class ScryTraderApplication
         }
 
         return options;
-    }
-    
-    private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
-    {
-        var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
-
-        List<Blueprint> bluePrintsFound = await FindBlueprintsInExpansions(card, scryFallCard, matchingExpansions);
-
-        bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-
-        if (bluePrintsFound.Count > 1)
-        {
-            bluePrintsFound = await ResolveMultipleBlueprints(card, scryFallCard, matchingExpansions);
-        }
-        else if (bluePrintsFound.Count == 0)
-        {
-            bluePrintsFound = await FindBlueprintsUsingFallback(card, scryFallCard, expansions);
-        }
-
-        return bluePrintsFound;
-    }
-
-    private async Task<List<Blueprint>> FindBlueprintsInExpansions(DeckCard card, ScryfallCard scryFallCard, List<Expansion> matchingExpansions)
-    {
-        List<Blueprint> bluePrintsFound = new List<Blueprint>();
-
-        foreach (var expansion in matchingExpansions)
-        {
-            var bluePrints = await _cardTrader.GetBlueprintsByExpansionAsync(expansion);
-            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
-
-            if (exactMatches.Count > 0)
-            {
-                bluePrintsFound.AddRange(exactMatches);
-            }
-            else
-            {
-                bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
-            }
-        }
-
-        return bluePrintsFound;
-    }
-
-    private async Task<List<Blueprint>> ResolveMultipleBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> matchingExpansions)
-    {
-        var exactExpansion = matchingExpansions.FirstOrDefault(x => x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
-
-        if (exactExpansion == null)
-        {
-            return new List<Blueprint>();
-        }
-
-        var exactBlueprints = await _cardTrader.GetBlueprintsByExpansionAsync(exactExpansion);
-
-        var filteredExact = exactBlueprints
-            .Where(x => x.Name == card.Printing.Name &&
-                        !string.IsNullOrEmpty(x.ScryfallId) &&
-                        x.ScryfallId == scryFallCard.Id)
-            .ToList();
-
-        if (filteredExact.Count > 0)
-        {
-            return filteredExact.DistinctBy(x => x.Id).ToList();
-        }
-
-        return exactBlueprints
-            .Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId))
-            .DistinctBy(x => x.Id)
-            .ToList();
-    }
-
-    private async Task<List<Blueprint>> FindBlueprintsUsingFallback(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
-    {
-        var partialSetCode = card.Printing.SetCode.Substring(0, Math.Min(2, card.Printing.SetCode.Length)).ToLower();
-        var fallbackExpansions = expansions.Where(x => x.Code.ToLower().Contains(partialSetCode)).ToList();
-
-        List<Blueprint> bluePrintsFound = new List<Blueprint>();
-
-        if (fallbackExpansions.Any())
-        {
-            foreach (var expansion in fallbackExpansions)
-            {
-                var bluePrints = await _cardTrader.GetBlueprintsByExpansionAsync(expansion);
-                var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard.Id).ToList();
-
-                if (exactMatches.Count > 0)
-                    bluePrintsFound.AddRange(exactMatches);
-                else
-                    bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
-            }
-
-            bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
-        }
-
-        return bluePrintsFound;
     }    
 }
