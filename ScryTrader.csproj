@@ -9,7 +9,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibraryDependenciesInSingleFile>true</IncludeNativeLibraryDependenciesInSingleFile>
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
   </PropertyGroup>
   <ItemGroup>
     <None Update="appsettings.json">
