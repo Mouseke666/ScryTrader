@@ -131,4 +131,22 @@ public class DeckPriceCalculator
 
         return bluePrintsFound;
     }
+
+    public async Task<decimal> CalculateDeckPrice(Deck deck, List<Expansion> expansions)
+    {
+        decimal totalPrice = 0;
+
+        foreach (DeckCard card in deck.Cards)
+        {
+            var price = await GetCardPrice(card, expansions);
+
+            if (price.HasValue)
+            {
+                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
+                totalPrice += price.Value;
+            }
+        }
+
+        return totalPrice;
+    }
 }

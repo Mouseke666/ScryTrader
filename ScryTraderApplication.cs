@@ -41,7 +41,7 @@ public class ScryTraderApplication
 
             Deck deck = parser.Parse("cards.txt");
 
-            decimal totalPrice = await CalculateDeckPrice(deck, expansions);            
+            decimal totalPrice = await _deckPriceCalculator.CalculateDeckPrice(deck, expansions);
 
             Console.WriteLine($"Total price for deck: €{totalPrice:F2}");
             return 0;
@@ -81,25 +81,7 @@ public class ScryTraderApplication
 
         return options;
     }
-
-    private async Task<decimal> CalculateDeckPrice(Deck deck, List<Expansion> expansions)
-    {
-        decimal totalPrice = 0;
-
-        foreach (DeckCard card in deck.Cards)
-        {
-            var price = await _deckPriceCalculator.GetCardPrice(card, expansions);
-
-            if (price.HasValue)
-            {
-                Console.WriteLine($"{card.Printing.Name} - €{price.Value:F2}");
-                totalPrice += price.Value;
-            }
-        }
-
-        return totalPrice;
-    }
-
+    
     private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard scryFallCard, List<Expansion> expansions)
     {
         var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
