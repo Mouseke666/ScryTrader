@@ -11,6 +11,7 @@ public class ScryTraderApplication
     private CardTraderClient _cardTrader;
     private ScryfallClient _scryfall;
     private readonly Dictionary<int, List<Blueprint>> _blueprintCache = new();
+    private readonly Dictionary<int, List<MarketplaceProduct>> _marketplaceProductCache = new();
 
     public ScryTraderApplication()
     {
@@ -118,9 +119,17 @@ public class ScryTraderApplication
 
     private async Task<List<MarketplaceProduct>> GetMarketplaceProduct(int bluePrintId)
     {
-        return await _cardTrader.GetMarketplaceProductsAsync(bluePrintId);
+        if (_marketplaceProductCache.TryGetValue(bluePrintId, out var products))
+        {
+            return products;
+        }
+
+        var result = await _cardTrader.GetMarketplaceProductsAsync(bluePrintId);
+        _marketplaceProductCache[bluePrintId] = result;
+
+        return result;
     }
-  
+
     private async Task<ScryfallCard?> GetScryfallCardAsync(string setCode, string collectorNumber)
     {
         return await _scryfall!.GetCardByCollectorAsync(setCode, collectorNumber);
