@@ -159,23 +159,7 @@ public class ScryTraderApplication
 
         if (bluePrintsFound.Count > 1)
         {
-            var exactExpansion = matchingExpansions.FirstOrDefault(x =>
-                x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
-
-            if (exactExpansion != null)
-            {
-                var exactBlueprints = await GetBluePrints(exactExpansion);
-                var filteredExact = exactBlueprints.Where(x => x.Name == card.Printing.Name && !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
-
-                if (filteredExact.Count > 0)
-                {
-                    bluePrintsFound = filteredExact.DistinctBy(x => x.Id).ToList();
-                }
-                else
-                {
-                    bluePrintsFound = exactBlueprints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)).DistinctBy(x => x.Id).ToList();
-                }
-            }
+            bluePrintsFound = await ResolveMultipleBlueprints(card, scryFallCard, matchingExpansions);
         }
         else if (bluePrintsFound.Count == 0)
         {
@@ -222,6 +206,34 @@ public class ScryTraderApplication
         }
 
         return bluePrintsFound;
+    }
+
+    private async Task<List<Blueprint>> ResolveMultipleBlueprints(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> matchingExpansions)
+    {
+        var exactExpansion = matchingExpansions.FirstOrDefault(x => x.Code.Equals(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase));
+
+        if (exactExpansion == null)
+        {
+            return new List<Blueprint>();
+        }
+
+        var exactBlueprints = await GetBluePrints(exactExpansion);
+
+        var filteredExact = exactBlueprints
+            .Where(x => x.Name == card.Printing.Name &&
+                        !string.IsNullOrEmpty(x.ScryfallId) &&
+                        x.ScryfallId == scryFallCard!.Id)
+            .ToList();
+
+        if (filteredExact.Count > 0)
+        {
+            return filteredExact.DistinctBy(x => x.Id).ToList();
+        }
+
+        return exactBlueprints
+            .Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId))
+            .DistinctBy(x => x.Id)
+            .ToList();
     }
 
 }
