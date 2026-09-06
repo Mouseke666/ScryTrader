@@ -152,22 +152,8 @@ public class ScryTraderApplication
     private async Task<List<Blueprint>> FindBlueprints(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> expansions)
     {
         var matchingExpansions = expansions.Where(x => x.Code.Contains(card.Printing.SetCode, StringComparison.CurrentCultureIgnoreCase)).ToList();
-        List<Blueprint> bluePrintsFound = new List<Blueprint>();
 
-        foreach (var expansion in matchingExpansions)
-        {
-            var bluePrints = await GetBluePrints(expansion);
-            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
-
-            if (exactMatches.Count > 0)
-            {
-                bluePrintsFound.AddRange(exactMatches);
-            }
-            else
-            {
-                bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
-            }
-        }
+        List<Blueprint> bluePrintsFound = await FindBlueprintsInExpansions(card, scryFallCard, matchingExpansions);
 
         bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
 
@@ -210,6 +196,28 @@ public class ScryTraderApplication
                 }
 
                 bluePrintsFound = bluePrintsFound.DistinctBy(x => x.Id).ToList();
+            }
+        }
+
+        return bluePrintsFound;
+    }
+
+    private async Task<List<Blueprint>> FindBlueprintsInExpansions(DeckCard card, ScryfallCard? scryFallCard, List<Expansion> matchingExpansions)
+    {
+        List<Blueprint> bluePrintsFound = new List<Blueprint>();
+
+        foreach (var expansion in matchingExpansions)
+        {
+            var bluePrints = await GetBluePrints(expansion);
+            var exactMatches = bluePrints.Where(x => !string.IsNullOrEmpty(x.ScryfallId) && x.ScryfallId == scryFallCard!.Id).ToList();
+
+            if (exactMatches.Count > 0)
+            {
+                bluePrintsFound.AddRange(exactMatches);
+            }
+            else
+            {
+                bluePrintsFound.AddRange(bluePrints.Where(x => x.Name == card.Printing.Name && string.IsNullOrEmpty(x.ScryfallId)));
             }
         }
 
